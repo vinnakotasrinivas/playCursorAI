@@ -37,12 +37,19 @@ if prompt := st.chat_input("Type a message..."):
 
     url = f"{base_url.rstrip('/')}/chat"
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=60.0) as client:
             response = client.post(url, json={"message": prompt})
-            response.raise_for_status()
-            reply = response.json()["reply"]
-        st.session_state.messages.append({"role": "assistant", "content": reply})
-        with st.chat_message("assistant"):
-            st.markdown(reply)
+            if response.is_error:
+                detail = response.text
+                try:
+                    detail = response.json().get("detail", detail)
+                except Exception:
+                    pass
+                st.error(f"Chat request failed ({response.status_code}): {detail}")
+            else:
+                reply = response.json()["reply"]
+                st.session_state.messages.append({"role": "assistant", "content": reply})
+                with st.chat_message("assistant"):
+                    st.markdown(reply)
     except httpx.HTTPError as exc:
         st.error(f"Chat request failed: {exc}")

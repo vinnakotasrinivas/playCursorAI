@@ -1,6 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+from backend.agent.llm import get_reply
 
 app = FastAPI(title="Agent App API")
 
@@ -21,6 +23,11 @@ class ChatResponse(BaseModel):
     reply: str
 
 
+@app.get("/")
+def root() -> dict[str, str]:
+    return {"message": "Agent App API", "docs": "/docs", "health": "/health"}
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -28,4 +35,9 @@ def health() -> dict[str, str]:
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(body: ChatRequest) -> ChatResponse:
-    return ChatResponse(reply=f"You said: {body.message}")
+    try:
+        return ChatResponse(reply=get_reply(body.message))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"LLM request failed: {exc}") from exc
